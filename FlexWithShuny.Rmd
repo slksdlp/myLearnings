@@ -1,0 +1,134 @@
+---
+title: "Sulekha's Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+   orientation: rows
+   social: menu
+   source_code: embed
+runtime: shiny
+
+---
+
+```{r global, include=FALSE}
+# load data in 'global' chunk so it can be shared by all users of the dashboard
+library(flexdashboard)
+library(shiny)
+library(xts)        
+library(tidyverse) 
+library(data.table)
+library(ggplot2)
+library(curl)
+library(dygraphs)
+library(d3heatmap)
+library(ggiraph)
+library(ggiraphExtra)
+library(plotly)
+
+fb <- data.frame(fread("E:\\Sulekhas BOOKSHELF\\R\\Data\\FoodBalanceSheet.csv",
+                           stringsAsFactors = FALSE))
+fb$Year <- as.character(fb$Year)
+fb$Year <- paste(fb$Year,"12-31",sep="-")
+str(fb)
+fb$Year <- as.Date(fb$Year)
+fb2<-xts(fb,fb$Year)
+```
+
+Page 1 {title="mypage"}
+========================================================================
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+  
+selectInput("area", label = h3("Select Country"), 
+    choices = c(Area), 
+    selected = "India")
+```
+
+Description here-----------
+
+
+Row
+-----------------------------------------------------------------------
+
+### Heatmap
+    
+```{r}
+
+cty <- reactive(quote(input$area),quoted=TRUE)
+
+renderD3heatmap({
+    d3heatmap(fb[fb$Area==input$area,3:13], scale = "row", colors="Greens")
+  
+})
+```
+
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Parallel Coordinates
+    
+```{r}
+renderDygraph(
+  dygraph(fb2[fb2$Area==cty(),12], main = "Food Balance") %>% 
+  dyRangeSelector(dateWindow = c("1961-12-31","2014-12-31"))
+  
+)
+```
+
+Page 2
+========================================================================
+
+### World map
+
+
+```{r}
+l <- list(color = toRGB("blue"), width = 0.5)
+
+# specify map projection/options
+g <- list(
+  showframe = FALSE,
+  showcoastlines = FALSE,
+  projection = list(type = 'Mercator')
+)
+
+fb_year <- subset(fb,Year =="2000-12-31")
+plot_geo(fb_year) %>%
+  add_trace(
+    z = fb_year$Population_1000Persons, color = "Reds", colors = 'Blues',
+    text = fb_year$Area, locations = fb_year$CountryCode, marker = list(line = l)
+  ) %>%
+   layout(
+    title = 'World map',
+    geo = g
+  )
+
+
+```
+
+Page 3
+========================================================================
+
+### 3D Scatter Plot
+
+```{r}
+library(plotly)
+
+
+d3data<-subset(fb,Area == "India")
+row.names(d3data) <- d3data$Year
+
+d3data$Year<-as.factor(d3data$Year)
+
+d3 <- plot_ly(d3data, x = ~Production_1000tonnes, y = ~Waste_1000tonnes, z = ~Food_1000tonnes, color = ~Year, colors = c("Red","Blue")) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Production'),
+                      yaxis = list(title = 'Waste'),
+                      zaxis = list(title = 'FoodSupply')))
+d3
+
+
+```
+
